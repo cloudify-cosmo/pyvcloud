@@ -20,6 +20,7 @@
 #todo: pass parameters in the create vapp to optimize for speed, available from 6.3
 #todo: refactor returns, raise exceptions, document with release notes
 
+import os
 import time
 import requests
 from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
