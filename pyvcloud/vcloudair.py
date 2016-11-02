@@ -129,7 +129,7 @@ class VCA(object):
         headers = {}
         headers["Accept"] = "application/json;version=" + '5.7'
         response = Http.post(url, headers=headers, auth=('_', '_'), verify=self.verify, logger=self.logger)
-        if response.status_code not in (403, 404):
+        if response.status_code < 401 or response.status_code > 499:
             return VCA.VCA_SERVICE_TYPE_VCA
         url = self.host + '/api/vchs/sessions'
         headers = {}
@@ -1213,6 +1213,7 @@ class VCA(object):
         vdc = self.get_vdc(vdc_name)
         if not vdc: return gateways
         link = filter(lambda link: link.get_rel() == "edgeGateways", vdc.get_Link())
+        if not link: return gateways
         self.response = Http.get(link[0].get_href(), headers=self.vcloud_session.get_vcloud_headers(), verify=self.verify, logger=self.logger)
         if self.response.status_code == requests.codes.ok:
             queryResultRecords = queryRecordViewType.parseString(self.response.content, True)
