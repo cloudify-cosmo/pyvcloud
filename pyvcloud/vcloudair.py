@@ -20,8 +20,6 @@
 #todo: pass parameters in the create vapp to optimize for speed, available from 6.3
 #todo: refactor returns, raise exceptions, document with release notes
 
-import sys
-import os
 import time
 import requests
 from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
@@ -57,6 +55,8 @@ class VCA(object):
     VCA_SERVICE_TYPE_VCHS = 'vchs'
     VCA_SERVICE_TYPE_VCA = 'vca'
     VCA_SERVICE_TYPE_UNKNOWN = 'unknown'
+    ISOLATED = 'isolated'
+    NATROUTED = 'natRouted'
 
     statuses = ['Could not be created',
                 'Unresolved',
@@ -1346,7 +1346,7 @@ class VCA(object):
 
     def create_vdc_network(self, vdc_name, network_name, gateway_name, start_address,
                            end_address, gateway_ip, netmask,
-                           dns1, dns2, dns_suffix):
+                           dns1, dns2, dns_suffix, fence_mode):
         """
         Request the creation of an new network within a vdc.
 
@@ -1355,6 +1355,7 @@ class VCA(object):
         :param gateway_name: (str): The name of an existing edge Gateway appliance that will manage the virtual network.
         :param start_address: (str): The first ip address in a range of addresses for the network.
         :param end_address: (str): The last ip address in a range of addresses for the network.
+        :param fence_mode: (str): Network type. Must be 'isolated' or 'natRouted'
         :return: (tuple of (bool, task or str))  Two values are returned, a bool success indicator and a \
                  :class:`pyvcloud.schema.vcd.v1_5.schemas.admin.vCloudEntities.TaskType`  object if the bool value was True or a \
                  str message indicating the reason for failure if the bool value was False.
@@ -1363,8 +1364,18 @@ class VCA(object):
 
         """
         vdc = self.get_vdc(vdc_name)
-        gateway = ReferenceType(href=self.get_gateway(vdc_name, gateway_name).me.href)
-        gateway.original_tagname_ = "EdgeGateway"
+        if fence_mode not in (VCA.ISOLATED, VCA.NATROUTED):
+            return (False, 'Incorrect fence_mode: {}.'\
+            ' Valid values: {}, {}'.format(fence_mode,
+                                           VCA.ISOLATED,
+                                           VCA.NATROUTED))
+        if fence_mode == VCA.NATROUTED:
+            if not gateway_name:
+                return (False, 'Gateway name is empty')
+            gateway = ReferenceType(href=self.get_gateway(vdc_name, gateway_name).me.href)
+            gateway.original_tagname_ = "EdgeGateway"
+        else:
+            gateway = None
 
         iprange = IpRangeType(StartAddress=start_address,
                               EndAddress=end_address)
@@ -1379,7 +1390,7 @@ class VCA(object):
         ipscopes = IpScopesType(IpScope=[ipscope])
 
         configuration = NetworkConfigurationType(IpScopes=ipscopes,
-                                                 FenceMode="natRouted")
+                                                 FenceMode=fence_mode)
         net = OrgVdcNetworkType(name=network_name, Description="Network created by pyvcloud",
                                 EdgeGateway=gateway, Configuration=configuration,
                                 IsShared=False)
